@@ -1,0 +1,132 @@
+// Prisma schema for the SG & US Stock Screener (MVP)
+// MVP scope: the 15 fundamentals from the "Case Study #1: S&P Global Inc" indicator set.
+// Valuation, leverage, and momentum metrics are deferred (see plan, Phase 1C).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Exchange {
+  SGX
+  NYSE
+  NASDAQ
+  AMEX
+}
+
+enum Country {
+  SG
+  US
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  ticker    String   @unique
+  name      String
+  exchange  Exchange
+  country   Country
+  sector    String?
+  industry  String?
+  marketCap Decimal? @db.Decimal(20, 2)
+  currency  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  financialStatements FinancialStatement[]
+  scores              Score[]
+  prices              DailyPrice[]
+  qualityScores       QualityCompounderScore[]
+}
+
+// One row per fiscal year, holding the 15 case-study indicators.
+model FinancialStatement {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear Int
+  periodEnd  DateTime?
+
+  revenue            Decimal? @db.Decimal(20, 2)
+  grossProfit        Decimal? @db.Decimal(20, 2)
+  grossMarginPct     Decimal? @db.Decimal(6, 2)
+  operatingIncome    Decimal? @db.Decimal(20, 2)
+  interestExpense    Decimal? @db.Decimal(20, 2)
+  netIncome          Decimal? @db.Decimal(20, 2)
+  netIncomeGrowthPct Decimal? @db.Decimal(6, 2)
+  netMarginPct       Decimal? @db.Decimal(6, 2)
+  eps                Decimal? @db.Decimal(10, 4)
+  epsGrowthPct       Decimal? @db.Decimal(6, 2)
+  debtRepaymentRatio Decimal? @db.Decimal(10, 2)
+  dividendsPerShare  Decimal? @db.Decimal(10, 4)
+  payoutRatioPct     Decimal? @db.Decimal(6, 2)
+  freeCashFlow       Decimal? @db.Decimal(20, 2)
+  returnOnEquityPct  Decimal? @db.Decimal(6, 2)
+
+  // Additional raw figures for the Quality Compounder Score (see plan addendum).
+  ebit               Decimal? @db.Decimal(20, 2)
+  pretaxIncome       Decimal? @db.Decimal(20, 2)
+  taxProvision       Decimal? @db.Decimal(20, 2)
+  totalDebt          Decimal? @db.Decimal(20, 2)
+  stockholdersEquity Decimal? @db.Decimal(20, 2)
+  sharesOutstanding  Decimal? @db.Decimal(20, 2)
+  investedCapital    Decimal? @db.Decimal(20, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, fiscalYear])
+}
+
+// Daily OHLCV, used for the price chart and (later) momentum scoring.
+model DailyPrice {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  date      DateTime
+  open      Decimal? @db.Decimal(14, 4)
+  high      Decimal? @db.Decimal(14, 4)
+  low       Decimal? @db.Decimal(14, 4)
+  close     Decimal  @db.Decimal(14, 4)
+  volume    BigInt?
+
+  @@unique([companyId, date])
+}
+
+// Precomputed composite scores (Phase 3, MVP weights).
+model Score {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  asOfDate  DateTime
+
+  overallScore         Decimal  @db.Decimal(5, 2)
+  profitabilityScore   Decimal  @db.Decimal(5, 2)
+  growthScore          Decimal  @db.Decimal(5, 2)
+  financialHealthScore Decimal  @db.Decimal(5, 2)
+  dividendScore        Decimal  @db.Decimal(5, 2)
+  sectorPercentileRank Decimal? @db.Decimal(5, 2)
+
+  @@unique([companyId, asOfDate])
+}
+
+// Quality Compounder Score (plan addendum): 9-factor equal-weighted score
+// (ROE, ROIC, Gross Margin stability, FCF Margin, Revenue CAGR, EPS CAGR,
+// Debt-to-Equity, Interest Coverage, Share dilution trend). Insider
+// ownership is dropped (no free-tier data source for SGX or US).
+model QualityCompounderScore {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  asOfDate  DateTime
+
+  overallScore        Decimal @db.Decimal(5, 2)
+  componentScores     Json
+  meetsRoeThreshold   Boolean
+  meetsRoicThreshold  Boolean
+  rank                Int?
+
+  @@unique([companyId, asOfDate])
+}
