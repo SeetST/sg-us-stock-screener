@@ -37,16 +37,18 @@ export default async function StockFactsheetPage(props: PageProps<"/stocks/[tick
   ];
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 md:p-10">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-8">
       <div>
         <Link href="/" className="text-sm text-muted-foreground hover:underline">
           ← Back to screener
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{factsheet.name}</h1>
-          <Badge variant="outline">{factsheet.ticker}</Badge>
-          <Badge variant="outline">{factsheet.exchange}</Badge>
-          <Badge variant="outline">{factsheet.country}</Badge>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">{factsheet.name}</h1>
+          <Badge variant="outline" className="font-mono text-xs">{factsheet.ticker}</Badge>
+          <Badge variant="outline" className="text-xs">{factsheet.exchange}</Badge>
+          <Badge variant="outline" className="text-xs">
+            {factsheet.country === "SG" ? "🇸🇬 SGX" : "🇺🇸 US"}
+          </Badge>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           {factsheet.sector ?? "Unknown sector"}

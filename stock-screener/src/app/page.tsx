@@ -8,6 +8,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getDistinctSectors,
   getScreenerRows,
@@ -15,8 +17,6 @@ import {
 } from "@/lib/screener";
 import { formatMarketCap, formatScore, scoreBadgeClass } from "@/lib/format";
 
-// Always reflects the latest scored data; avoid baking DB results into the
-// build output (and avoids requiring a DB connection at build time).
 export const dynamic = "force-dynamic";
 
 const SORT_COLUMNS: { key: ScreenerSortKey; label: string }[] = [
@@ -50,25 +50,20 @@ export default async function ScreenerPage(props: PageProps<"/">) {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 md:p-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">SG &amp; US Stock Screener</h1>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-8">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-bold tracking-tight">SG &amp; US Stock Screener</h1>
         <p className="text-sm text-muted-foreground">
-          MVP screener scored on the 15 fundamentals from the case-study indicator set
-          (Profitability 35% · Growth 25% · Financial Health 20% · Dividend 20%).
+          Ranked by fundamentals · Profitability 35% · Growth 25% · Financial Health 20% · Dividend 20%
         </p>
-        <nav className="mt-2 text-sm">
-          <Link href="/compounders" className="text-primary hover:underline">
-            View Quality Compounder rankings →
-          </Link>
-        </nav>
       </div>
 
-      <form className="flex flex-wrap gap-3" method="get">
+      {/* Filter bar */}
+      <form className="flex flex-wrap items-center gap-2" method="get">
         <select
           name="country"
           defaultValue={country ?? ""}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="">All markets</option>
           <option value="SG">Singapore (SGX)</option>
@@ -78,7 +73,7 @@ export default async function ScreenerPage(props: PageProps<"/">) {
         <select
           name="sector"
           defaultValue={sector ?? ""}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="">All sectors</option>
           {sectors.map((s) => (
@@ -91,78 +86,91 @@ export default async function ScreenerPage(props: PageProps<"/">) {
         <input type="hidden" name="sort" value={sort} />
         <input type="hidden" name="dir" value={dir} />
 
-        <button
-          type="submit"
-          className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Apply
-        </button>
+        <Button type="submit" size="sm">Apply</Button>
+
+        {(country || sector) && (
+          <Link
+            href="/"
+            className="inline-flex h-8 items-center rounded-md px-3 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            Clear filters
+          </Link>
+        )}
+
+        <span className="ml-auto text-sm text-muted-foreground">
+          {rows.length} {rows.length === 1 ? "company" : "companies"}
+        </span>
       </form>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {SORT_COLUMNS.map((col) => {
-                const isActive = sort === col.key;
-                const nextDir = isActive && dir === "desc" ? "asc" : "desc";
-                return (
-                  <TableHead key={col.key}>
-                    <Link
-                      href={buildHref({ sort: col.key, dir: nextDir })}
-                      className="flex items-center gap-1 hover:underline"
-                    >
-                      {col.label}
-                      {isActive && <span>{dir === "desc" ? "▼" : "▲"}</span>}
+      {/* Table */}
+      <Card className="overflow-hidden p-0">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                {SORT_COLUMNS.map((col) => {
+                  const isActive = sort === col.key;
+                  const nextDir = isActive && dir === "desc" ? "asc" : "desc";
+                  return (
+                    <TableHead key={col.key} className="font-semibold">
+                      <Link
+                        href={buildHref({ sort: col.key, dir: nextDir })}
+                        className="flex items-center gap-1 hover:text-foreground"
+                      >
+                        {col.label}
+                        {isActive ? (
+                          <span className="text-primary">{dir === "desc" ? "↓" : "↑"}</span>
+                        ) : (
+                          <span className="text-muted-foreground/40">↕</span>
+                        )}
+                      </Link>
+                    </TableHead>
+                  );
+                })}
+                <TableHead className="font-semibold">Market</TableHead>
+                <TableHead className="text-right font-semibold text-muted-foreground">Price</TableHead>
+                <TableHead className="text-right font-semibold text-muted-foreground">Fair Value</TableHead>
+                <TableHead className="text-right font-semibold text-muted-foreground">Upside %</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                    No companies found. Run <code className="rounded bg-muted px-1 py-0.5 text-xs">npm run ingest</code> and{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-xs">npm run score</code> to populate data.
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((row) => (
+                <TableRow key={row.id} className="hover:bg-muted/30">
+                  <TableCell className="font-medium">
+                    <Link href={`/stocks/${row.ticker}`} className="hover:text-primary hover:underline">
+                      {row.name}
                     </Link>
-                  </TableHead>
-                );
-              })}
-              <TableHead>Country</TableHead>
-              <TableHead className="text-right" title="Requires price data (deferred, see plan Phase 1C)">
-                Price
-              </TableHead>
-              <TableHead className="text-right" title="Requires valuation indicators (deferred, see plan Phase 1C)">
-                Fair Value
-              </TableHead>
-              <TableHead className="text-right" title="Requires valuation indicators (deferred, see plan Phase 1C)">
-                Upside %
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  No companies found. Run <code>npm run ingest</code> and{" "}
-                  <code>npm run score</code> to populate data.
-                </TableCell>
-              </TableRow>
-            )}
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-medium">
-                  <Link href={`/stocks/${row.ticker}`} className="hover:underline">
-                    {row.name}
-                  </Link>
-                </TableCell>
-                <TableCell>{row.ticker}</TableCell>
-                <TableCell>{row.sector ?? "—"}</TableCell>
-                <TableCell>{formatMarketCap(row.marketCap, row.currency)}</TableCell>
-                <TableCell>
-                  <Badge className={scoreBadgeClass(row.overallScore)} variant="secondary">
-                    {formatScore(row.overallScore)}
-                  </Badge>
-                </TableCell>
-                <TableCell>{row.country}</TableCell>
-                <TableCell className="text-right text-muted-foreground">—</TableCell>
-                <TableCell className="text-right text-muted-foreground">—</TableCell>
-                <TableCell className="text-right text-muted-foreground">—</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-sm text-muted-foreground">{row.ticker}</TableCell>
+                  <TableCell className="text-sm">{row.sector ?? "—"}</TableCell>
+                  <TableCell className="tabular-nums text-sm">{formatMarketCap(row.marketCap, row.currency)}</TableCell>
+                  <TableCell>
+                    <Badge className={scoreBadgeClass(row.overallScore)} variant="secondary">
+                      {formatScore(row.overallScore)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs font-normal">
+                      {row.country === "SG" ? "🇸🇬 SGX" : "🇺🇸 US"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">—</TableCell>
+                  <TableCell className="text-right text-muted-foreground">—</TableCell>
+                  <TableCell className="text-right text-muted-foreground">—</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }
